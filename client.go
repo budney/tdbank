@@ -20,12 +20,12 @@ const (
 
 var (
 	DefaultHandlers = map[string]func(*HistoryRecord, string) error{
-		"Date":            DateFromString,
-		"Type":            TypeFromString,
-		"Description":     DescriptionFromString,
-		"Debit":           DebitFromString,
-		"Credit":          CreditFromString,
-		"Account Balance": BalanceFromString,
+		"Date":            (*HistoryRecord).DateFromString,
+		"Type":            (*HistoryRecord).TypeFromString,
+		"Description":     (*HistoryRecord).DescriptionFromString,
+		"Debit":           (*HistoryRecord).DebitFromString,
+		"Credit":          (*HistoryRecord).CreditFromString,
+		"Account Balance": (*HistoryRecord).BalanceFromString,
 	}
 )
 
@@ -375,7 +375,9 @@ func (client *Client) PrintHtml() {
 	}
 }
 
-func DateFromString(record *HistoryRecord, value string) error {
+// DateFromString attempts to parse the string as a date and, if
+// successful, stores it in the HistoryRecord's Date field.
+func (record *HistoryRecord) DateFromString(value string) error {
 	value = strings.TrimSpace(value)
 
 	if date, err := dateparse.ParseLocal(value); err != nil {
@@ -387,7 +389,10 @@ func DateFromString(record *HistoryRecord, value string) error {
 	return nil
 }
 
-func DebitFromString(record *HistoryRecord, value string) error {
+// DebitFromString attempts to parse the string as a monetary value
+// and, if successful, stores it in the HistoryRecord's Debit field.
+// The value is parsed as an integer number of pennies.
+func (record *HistoryRecord) DebitFromString(value string) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
@@ -402,7 +407,10 @@ func DebitFromString(record *HistoryRecord, value string) error {
 	return nil
 }
 
-func CreditFromString(record *HistoryRecord, value string) error {
+// CreditFromString attempts to parse the string as a monetary value
+// and, if successful, stores it in the HistoryRecord's Credit field.
+// The value is parsed as an integer number of pennies.
+func (record *HistoryRecord) CreditFromString(value string) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
@@ -417,7 +425,10 @@ func CreditFromString(record *HistoryRecord, value string) error {
 	return nil
 }
 
-func BalanceFromString(record *HistoryRecord, value string) error {
+// BalanceFromString attempts to parse the string as a monetary value
+// and, if successful, stores it in the HistoryRecord's Balance field.
+// The value is parsed as an integer number of pennies.
+func (record *HistoryRecord) BalanceFromString(value string) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
@@ -432,12 +443,17 @@ func BalanceFromString(record *HistoryRecord, value string) error {
 	return nil
 }
 
-func TypeFromString(record *HistoryRecord, value string) error {
+// TypeFromString stores the string in the HistoryRecord's Type field.
+// The string first has any leading or trailing whitepace removed.
+func (record *HistoryRecord) TypeFromString(value string) error {
 	record.Type = strings.TrimSpace(value)
 	return nil
 }
 
-func DescriptionFromString(record *HistoryRecord, value string) error {
+// DescriptionFromString stores the string in the HistoryRecord's
+// Description field. The string first has any leading or trailing
+// whitepace removed.
+func (record *HistoryRecord) DescriptionFromString(value string) error {
 	record.Description = strings.TrimSpace(value)
 	return nil
 }
