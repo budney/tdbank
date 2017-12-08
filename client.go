@@ -2,7 +2,7 @@
 package tdbank
 
 import (
-    "errors"
+	"errors"
 	"fmt"
 	"github.com/araddon/dateparse"
 	"github.com/sclevine/agouti"
@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	DefaultLoginUrl = "https://onlinebanking.tdbank.com/"
-    AccountBalanceSelector = "table[id=Table2] span, table[id=AccountBalanceSection] span"
-    AccountHistorySelector = "table.td-table.td-table-stripe-row.td-table-hover-row.td-table-border-column tbody"
+	DefaultLoginUrl        = "https://onlinebanking.tdbank.com/"
+	AccountBalanceSelector = "table[id=Table2] span, table[id=AccountBalanceSection] span"
+	AccountHistorySelector = "table.td-table.td-table-stripe-row.td-table-hover-row.td-table-border-column tbody"
 )
 
 var (
@@ -196,7 +196,7 @@ func (client *Client) ViewAccountHistory(account string, start time.Time, end ti
 	}
 
 	// Click it
-    if err := selection.Click(); err != nil {
+	if err := selection.Click(); err != nil {
 		log.Printf("Failed to click account link for \""+account+"\": %v", err)
 		return err
 	}
@@ -224,50 +224,50 @@ func (client *Client) ViewAccountHistory(account string, start time.Time, end ti
 			return err
 		}
 
-        // Enter the end date
+		// Enter the end date
 		if err := selection.SendKeys(end.Format("01/02/2006")); err != nil {
 			log.Printf("Failed to set end date: %v", err)
-            return err
+			return err
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
 
-    // Find the search button
+	// Find the search button
 	selection = client.page.FindByID("btnSearch")
 	if count, err := selection.Count(); count == 0 || err != nil {
-        log.Printf("Unable to find search button: %v", err)
+		log.Printf("Unable to find search button: %v", err)
 		return err
 	}
 
 	// Clicking the "Show History" button doesn't work in all web drivers
 	if err := selection.SendKeys("\n"); err != nil {
 		log.Printf("Failed to click the Show History button: %v", err)
-        return err
+		return err
 	}
 
-    return nil
+	return nil
 }
 
 func (client *Client) ParseAccountBalance() (int64, error) {
-    // Find the elements that contain the account balance
-    selections := client.page.All(AccountBalanceSelector)
+	// Find the elements that contain the account balance
+	selections := client.page.All(AccountBalanceSelector)
 
-    var balance int64
-    var err error
+	var balance int64
+	var err error
 
-    // Check whether we found it
-    if count, _ := selections.Count(); count == 0 {
-        return 0, errors.New("Unable to find account balance in page")
-    } else {
-        value, _ := selections.At(count-1).Text()
+	// Check whether we found it
+	if count, _ := selections.Count(); count == 0 {
+		return 0, errors.New("Unable to find account balance in page")
+	} else {
+		value, _ := selections.At(count - 1).Text()
 
-        // Convert it to an integer
-        if balance, err = parseMoney(value); err != nil {
-            return 0, err
-        }
-    }
+		// Convert it to an integer
+		if balance, err = parseMoney(value); err != nil {
+			return 0, err
+		}
+	}
 
-    return balance, nil
+	return balance, nil
 }
 
 // This function assumes the client is located on the account history page,
@@ -281,7 +281,7 @@ func (client *Client) ParseAccountHistory() ([]HistoryRecord, error) {
 	n, _ := rows.Count()
 
 	if n == 0 {
-        // There should be at least one row: the header row
+		// There should be at least one row: the header row
 		return history, errors.New("No account history found in page")
 	}
 
@@ -289,26 +289,26 @@ func (client *Client) ParseAccountHistory() ([]HistoryRecord, error) {
 	header := rows.At(0).All("th, td")
 	m, _ := header.Count()
 
-    var balance int64
-    hasBalance := false
+	var balance int64
+	hasBalance := false
 
 	// Record the field names
 	for i := 0; i < m; i++ {
 		text, _ := header.At(i).Text()
 		fieldNames = append(fieldNames, text)
 
-        if strings.Contains(text, "Balance") {
-            hasBalance = true
-        }
+		if strings.Contains(text, "Balance") {
+			hasBalance = true
+		}
 	}
 
-    if !hasBalance {
-        var err error
-        if balance, err = client.ParseAccountBalance(); err != nil {
-            log.Printf("Couldn't determine account balance: %v", err)
-            return history, err
-        }
-    }
+	if !hasBalance {
+		var err error
+		if balance, err = client.ParseAccountBalance(); err != nil {
+			log.Printf("Couldn't determine account balance: %v", err)
+			return history, err
+		}
+	}
 
 	// Iterate through the rows
 	for i := 1; i < n; i++ {
@@ -333,32 +333,32 @@ func (client *Client) ParseAccountHistory() ([]HistoryRecord, error) {
 			}
 		}
 
-        // If we're reconstructing the balance history, do so now
-        if !hasBalance {
-            record.Balance = balance
-            balance += record.Credit - record.Debit
-        }
+		// If we're reconstructing the balance history, do so now
+		if !hasBalance {
+			record.Balance = balance
+			balance += record.Credit - record.Debit
+		}
 
 		// Save the hisory records, but in reverse order
 		history = append([]HistoryRecord{record}, history...)
 	}
 
-    index := 0
-    var date time.Time
+	index := 0
+	var date time.Time
 
-    // Once more, this time to set the Index field
-    for i := 0; i < len(history); i++ {
-        record := &history[i]
+	// Once more, this time to set the Index field
+	for i := 0; i < len(history); i++ {
+		record := &history[i]
 
-        if record.Date.Equal(date) {
-            index++
-        } else {
-            index = 1
-            date = record.Date
-        }
+		if record.Date.Equal(date) {
+			index++
+		} else {
+			index = 1
+			date = record.Date
+		}
 
-        record.Index = index
-    }
+		record.Index = index
+	}
 
 	return history, nil
 }
