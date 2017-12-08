@@ -1,4 +1,10 @@
-// Client to connect to TD bank and scrape transactions as CSV.
+// Copyright 2017 Len Budney. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package tdbank provides methods for online banking with TD Bank.
+// It uses agouti's Chrome web driver to access the bank's web site.
+// For now it only supports scraping account histories.
 package tdbank
 
 import (
@@ -29,7 +35,12 @@ var (
 	}
 )
 
-// Contains a history record
+// A HistoryRecord contains one line from an account history.
+// TD Bank includes different fields for credit accounts (i.e.,
+// credit cards) and debit accounts (e.g., checking accounts).
+// Other methods in this package make reasonable efforts to fill
+// in missing fields -- for example, by computing a running balance
+// if the account history doesn't show one.
 type HistoryRecord struct {
 	Index       int
 	Date        time.Time
@@ -40,13 +51,18 @@ type HistoryRecord struct {
 	Balance     int64
 }
 
-// Client connection information
+// A Client represents a virtual web browser. It holds pointers
+// to the Chrome web driver and the current page. Most functions
+// in this package are implemented as methods of client, because
+// they always need a web browser.
 type Client struct {
 	driver *agouti.WebDriver
 	page   *agouti.Page
 }
 
-// Used to pass authorization to a new client
+// An Auth holds the URL of the login page, a username and password,
+// and answers to the security questions. The Login() method needs
+// this information.
 type Auth struct {
 	LoginUrl          string
 	Username          string
@@ -54,6 +70,12 @@ type Auth struct {
 	SecurityQuestions map[string]string
 }
 
+// Start launches a virtual browser -- i.e., it initializes a Chrome
+// web driver and launches Chrome with a blank page. The work is done
+// by agouti, which in turn runs chromedriver, so you may want to set
+// up chromedriver to your liking. For example you might want to put
+// a wrapper (named chromedriver) on your path that launches Chrome in
+// headless mode.
 func (client *Client) Start() {
 	// Ignore repeated attempts to start the driver
 	if client.driver != nil {
@@ -78,6 +100,15 @@ func (client *Client) Start() {
 	return
 }
 
+// Stop shuts down the web driver and the Chrome process. You
+// want to make sure you call Stop every time you call Start,
+// or else Chrome processes will continue running after your
+// Go program exits. The usual way to do this is:
+//
+//    var client tdbank.Client;
+//
+//    client.Start()
+//    defer client.Stop()
 func (client *Client) Stop() {
 	if client.driver == nil {
 		log.Print("Ignoring attempt to stop driver that was never started")
@@ -92,6 +123,11 @@ func (client *Client) Stop() {
 	return
 }
 
+// Login connects to the TD Bank login page and logs in with
+// the supplied username and password. If it notices any of
+// the security questions it was given, then it supplies the
+// answer. When this method returns, the browser should be
+// at the main accounts page.
 func (client *Client) Login(auth Auth) {
 	var loginUrl string
 
@@ -169,6 +205,7 @@ func (client *Client) Login(auth Auth) {
 	return
 }
 
+// ViewAccounts takes the browser back to the main accounts page.
 func (client *Client) ViewAccounts() error {
 	// Find the accounts link
 	selection := client.page.FindByLink("Accounts")
@@ -185,8 +222,11 @@ func (client *Client) ViewAccounts() error {
 	return nil
 }
 
-// This function assumes the client is located on the account list page,
-// and opens the account history for the specified dates
+// ViewAccountHistory clicks on the provided account name, and
+// then enters the provided start and end dates to view all
+// transactions between those two dates (inclusive). This method
+// assumes that the browser is on the main accounts page already,
+// so if in doubt you should call ViewAccounts first.
 func (client *Client) ViewAccountHistory(account string, start time.Time, end time.Time) error {
 	// Find the account link
 	selection := client.page.FindByLink(account)
@@ -248,6 +288,10 @@ func (client *Client) ViewAccountHistory(account string, start time.Time, end ti
 	return nil
 }
 
+// ParseAccountBalance assumes that the browser is on the account
+// history page for the desired account, and looks within the
+// current page for an account balance. It parses the balance as
+// a 64-bit integer giving the amount in pennies.
 func (client *Client) ParseAccountBalance() (int64, error) {
 	// Find the elements that contain the account balance
 	selections := client.page.All(AccountBalanceSelector)
@@ -270,8 +314,12 @@ func (client *Client) ParseAccountBalance() (int64, error) {
 	return balance, nil
 }
 
-// This function assumes the client is located on the account history page,
-// and the history is displayed.
+// ParseAccountHistory assumes the browser is on the account history
+// page, and looks within the page for a table of transactions. It
+// reads each one off the page into a HistoryRecord struct. If some
+// struct fields aren't found in the table (such as a running account
+// balance), then it makes a reasonable effort to calculate them and
+// fill them in anyway.
 func (client *Client) ParseAccountHistory() ([]HistoryRecord, error) {
 	var history []HistoryRecord
 	var fieldNames []string
@@ -363,10 +411,16 @@ func (client *Client) ParseAccountHistory() ([]HistoryRecord, error) {
 	return history, nil
 }
 
+// GetHtml returns the HTML for the current web page
+// as a string. This is useful in a pinch for
+// debugging.
 func (client *Client) GetHtml() (string, error) {
 	return client.page.HTML()
 }
 
+// PrintHtml prints the HTML for the current web page.
+// This is handy if something breaks, and you want to
+// inspect the page where something went wrong.
 func (client *Client) PrintHtml() {
 	if source, err := client.GetHtml(); err != nil {
 		log.Fatalf("Can't get HTML: %v", err)
@@ -458,15 +512,8 @@ func (record *HistoryRecord) DescriptionFromString(value string) error {
 	return nil
 }
 
-// Basically a no-op, supplied for consistent calling conventions
-func parseString(value string) (string, error) {
-	return value, nil
-}
-
-func parseDate(value string) (time.Time, error) {
-	return dateparse.ParseLocal(value)
-}
-
+// parseMoney attempts to parse a string as an integer number of
+// pennies.
 func parseMoney(value string) (int64, error) {
 	// Strip dollar signs, commas, and periods from the string
 	value = strings.Map(func(r rune) rune {
